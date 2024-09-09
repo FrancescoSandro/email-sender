@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Send Emails</title>
+</head>
+<body>
+    <h1>Send Emails-created by Sandro</h1>
+    <form action="/send_emails" method="post" enctype="multipart/form-data">
+        <label for="credentials">Select Credentials JSON:</label>
+        <input type="file" name="credentials" required><br><br>
+
+        <label for="excel">Select Excel File:</label>
+        <input type="file" name="excel" required><br><br>
+
+        <label for="num_rows">Number of Emails to Send:</label>
+        <input type="number" name="num_rows" required><br><br>
+
+        <label for="subject">Email Subject:</label>
+        <input type="text" name="subject" required><br><br>
+
+        <label for="txt_files">Select TXT or HTML Files:</label>
+        <input type="file" name="txt_files" multiple required><br><br>
+
+        <button type="submit">Send Emails</button>
+    </form>
+</body>
+</html>
