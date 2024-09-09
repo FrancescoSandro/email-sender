@@ -14,7 +14,7 @@ from email.mime.multipart import MIMEMultipart
 import random
 
 app = Flask(__name__)
-app.secret_key = os.getenv('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', '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')  # Replace with a secure key
+app.secret_key = os.getenv('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', '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')  # Replace with a secure key
 
 class GmailService:
     def __init__(self, credentials_file=None):
