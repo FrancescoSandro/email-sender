@@ -1,4 +1,5 @@
 import os
+import json
 import base64
 import pickle
 from flask import Flask, request, render_template, redirect, session, url_for
@@ -14,7 +15,9 @@ import time
 import secrets
 
 app = Flask(__name__)
-app.secret_key = os.getenv('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', secrets.token_hex(32))  # Use an environment variable for the secret key
+
+# Use environment variables for the secret key
+app.secret_key = os.getenv('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', secrets.token_hex(32))  # Use an env variable or a generated token
 
 class GmailService:
     def __init__(self):
@@ -46,8 +49,14 @@ class GmailService:
                 self.creds.refresh(Request())
             else:
                 print("Starting new OAuth flow")
-                flow = Flow.from_client_secrets_file(
-                    'credentials.json',
+
+                # Load credentials.json from environment variable
+                credentials_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+                if not credentials_json:
+                    raise ValueError("GOOGLE_CREDENTIALS_JSON environment variable not set.")
+
+                flow = Flow.from_client_config(
+                    json.loads(credentials_json),
                     scopes=SCOPES,
                     redirect_uri=url_for('oauth2callback', _external=True)
                 )
@@ -93,7 +102,7 @@ def index():
         subject = request.form['subject']
         num_rows = int(request.form['num_rows'])
 
-        file_path = 'uploaded_file.xlsx'
+        file_path = 'uploads/uploaded_file.xlsx'
         files[0].save(file_path)
         
         df, emails = read_emails_from_excel(file_path, num_rows)
@@ -128,8 +137,12 @@ def index():
 
 @app.route('/authorize')
 def authorize():
-    flow = Flow.from_client_secrets_file(
-        'credentials.json',
+    credentials_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+    if not credentials_json:
+        raise ValueError("GOOGLE_CREDENTIALS_JSON environment variable not set.")
+
+    flow = Flow.from_client_config(
+        json.loads(credentials_json),
         scopes=['https://www.googleapis.com/auth/gmail.send'],
         redirect_uri=url_for('oauth2callback', _external=True)
     )
@@ -143,8 +156,12 @@ def authorize():
 @app.route('/oauth2callback')
 def oauth2callback():
     state = session['state']
-    flow = Flow.from_client_secrets_file(
-        'credentials.json',
+    credentials_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+    if not credentials_json:
+        raise ValueError("GOOGLE_CREDENTIALS_JSON environment variable not set.")
+
+    flow = Flow.from_client_config(
+        json.loads(credentials_json),
         scopes=['https://www.googleapis.com/auth/gmail.send'],
         state=state,
         redirect_uri=url_for('oauth2callback', _external=True)
