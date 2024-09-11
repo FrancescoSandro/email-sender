@@ -16,7 +16,7 @@ import secrets
 app = Flask(__name__)
 
 # Use environment variables for the secret key
-app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))  # Use env variable or generated token
+app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
 
 class GmailService:
     def __init__(self):
@@ -27,8 +27,8 @@ class GmailService:
             self.service = self.authenticate()
 
     def load_credentials(self):
+        """Load credentials from the session, and handle cases where credentials are missing or invalid."""
         if 'credentials' in session:
-            print("Credentials found in session")
             creds_info = session['credentials']
             self.creds = Credentials(
                 token=creds_info['token'],
@@ -38,44 +38,20 @@ class GmailService:
                 client_secret=creds_info['client_secret'],
                 scopes=creds_info['scopes']
             )
+            if self.creds and self.creds.expired and self.creds.refresh_token:
+                self.creds.refresh(Request())
+                self.save_credentials_to_session(self.creds)
         else:
             print("Credentials not found in session")
             raise Exception("Credentials could not be loaded. Please authenticate first.")
 
     def authenticate(self):
-        SCOPES = ['https://www.googleapis.com/auth/gmail.send']
-        if not self.creds or not self.creds.valid:
-            if self.creds and self.creds.expired and self.creds.refresh_token:
-                print("Refreshing credentials")
-                self.creds.refresh(Request())
-                self.save_credentials_to_session(self.creds)
-            else:
-                print("Starting new OAuth flow")
-
-                # Load credentials.json from environment variable
-                credentials_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
-                if not credentials_json:
-                    raise ValueError("GOOGLE_CREDENTIALS_JSON environment variable not set.")
-
-                flow = Flow.from_client_config(
-                    json.loads(credentials_json),
-                    scopes=SCOPES,
-                    redirect_uri=url_for('oauth2callback', _external=True)
-                )
-                authorization_url, state = flow.authorization_url(
-                    access_type='offline',
-                    include_granted_scopes='true'
-                )
-                session['state'] = state
-                return redirect(authorization_url)
-
-        # Create the Gmail API service object
+        """Build the Gmail API service."""
         try:
             service = build('gmail', 'v1', credentials=self.creds)
         except Exception as e:
             print(f"Failed to create Gmail service: {e}")
             raise Exception(f"Failed to create Gmail service: {e}")
-
         return service
 
     def send_email(self, email, subject, content, content_type):
@@ -111,6 +87,10 @@ class GmailService:
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
+        # Check if credentials are in the session, else redirect to OAuth flow
+        if 'credentials' not in session:
+            return redirect(url_for('authorize'))
+
         files = request.files.getlist('files')
         subject = request.form['subject']
         num_rows = int(request.form['num_rows'])
@@ -212,4 +192,4 @@ def update_excel_status(file_path, df):
     df.to_excel(file_path, index=False)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000, debug=True)  # Adjust port if needed
+    app.run(host='0.0.0.0', port=10000, debug=True)
