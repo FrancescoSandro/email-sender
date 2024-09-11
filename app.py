@@ -1,7 +1,6 @@
 import os
 import json
 import base64
-import pickle
 from flask import Flask, request, render_template, redirect, session, url_for
 import pandas as pd
 from google.oauth2.credentials import Credentials
@@ -17,7 +16,7 @@ import secrets
 app = Flask(__name__)
 
 # Use environment variables for the secret key
-app.secret_key = os.getenv('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', secrets.token_hex(32))  # Use an env variable or a generated token
+app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))  # Use env variable or generated token
 
 class GmailService:
     def __init__(self):
@@ -30,16 +29,18 @@ class GmailService:
     def load_credentials(self):
         if 'credentials' in session:
             print("Credentials found in session")
-            self.creds = Credentials.from_authorized_user_info(session['credentials'])
+            creds_info = session['credentials']
+            self.creds = Credentials(
+                token=creds_info['token'],
+                refresh_token=creds_info['refresh_token'],
+                token_uri=creds_info['token_uri'],
+                client_id=creds_info['client_id'],
+                client_secret=creds_info['client_secret'],
+                scopes=creds_info['scopes']
+            )
         else:
             print("Credentials not found in session")
-            if os.path.exists('token.pickle'):
-                print("Loading credentials from token.pickle")
-                with open('token.pickle', 'rb') as token:
-                    self.creds = pickle.load(token)
-            else:
-                print("No token.pickle file found")
-                raise Exception("Credentials could not be loaded. Please authenticate first.")
+            raise Exception("Credentials could not be loaded. Please authenticate first.")
 
     def authenticate(self):
         SCOPES = ['https://www.googleapis.com/auth/gmail.send']
@@ -47,6 +48,7 @@ class GmailService:
             if self.creds and self.creds.expired and self.creds.refresh_token:
                 print("Refreshing credentials")
                 self.creds.refresh(Request())
+                self.save_credentials_to_session(self.creds)
             else:
                 print("Starting new OAuth flow")
 
@@ -94,6 +96,17 @@ class GmailService:
         except Exception as error:
             print(f'An error occurred: {error}')
             return False, None
+
+    def save_credentials_to_session(self, creds):
+        """Save the credentials to the session for future use."""
+        session['credentials'] = {
+            'token': creds.token,
+            'refresh_token': creds.refresh_token,
+            'token_uri': creds.token_uri,
+            'client_id': creds.client_id,
+            'client_secret': creds.client_secret,
+            'scopes': creds.scopes
+        }
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -171,10 +184,8 @@ def oauth2callback():
     if not flow.credentials:
         return 'Authorization failed', 400
 
-    # Save the credentials for the next run
-    session['credentials'] = flow.credentials.to_json()
-    with open('token.pickle', 'wb') as token:
-        pickle.dump(flow.credentials, token)
+    # Save the credentials to the session
+    GmailService().save_credentials_to_session(flow.credentials)
 
     return redirect(url_for('index'))
 
